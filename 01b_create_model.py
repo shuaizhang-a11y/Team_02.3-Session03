@@ -10,7 +10,7 @@ from specklepy.core.api.inputs.model_inputs import CreateModelInput
 
 # TODO: Replace with your project ID
 PROJECT_ID = "128262a20c"
-MODEL_NAME = "homework/session03/team_02.3"
+MODEL_NAME = "homework/session03/team_02.2"
 
 
 def main():

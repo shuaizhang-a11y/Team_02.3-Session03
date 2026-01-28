@@ -32,7 +32,7 @@ def main():
     data = operations.receive(version.referenced_object, transport)
 
     # Add custom properties to the root object
-    data["custom_property"] = "Team_02.3"
+    data["custom_property"] = "Team_02.2"
     data["analysis_date"] = "2026-01-18"
     data["processed_by"] = "Shuai Zhang"
 
@@ -42,6 +42,22 @@ def main():
         if isinstance(element, Base):
             element["element_index"] = i
             element["custom_tag"] = f"Element_{i:03d}"
+
+             # --- CHANGE DESIGNER NAMES ---
+    if "Designer" in element:
+        if element["Designer"] == "Aditya Kossambe":
+            element["Designer"] = "Giovanni Carlo"
+        elif element["Designer"] == "Marina Osmolovska":
+            element["Designer"] = "Hala Lahlou"
+
+    # If Designer is nested under properties (very common)
+    props = element.get("properties", {})
+    if isinstance(props, dict) and "Designer" in props:
+        if props["Designer"] == "Aditya Kossambe":
+            props["Designer"] = "Giovanni Carlo"
+        elif props["Designer"] == "Marina Osmolovska":
+            props["Designer"] = "Hala Lahlou"
+            
 
     print(f"✓ Added properties to {len(elements) if elements else 0} elements")
 
