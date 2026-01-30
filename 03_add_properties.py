@@ -3,8 +3,6 @@
 
 This script demonstrates how to receive objects from Speckle,
 add custom properties, and send them back as a new version.
-
-Use this model: https://app.speckle.systems/projects/YOUR_PROJECT_ID/models/YOUR_MODEL_ID
 """
 
 from main import get_client
@@ -14,94 +12,107 @@ from specklepy.objects.base import Base
 from specklepy.core.api.inputs.version_inputs import CreateVersionInput
 
 
-
-# TODO: Replace with your project, model, and version IDs
 PROJECT_ID = "128262a20c"
 MODEL_ID = "9884593105"
-VERSION_ID = "08b571817c"
 
 
-def main():
-    # Authenticate
-    client = get_client()
-
-    # Get the specific version
-    version = client.version.get(VERSION_ID, PROJECT_ID)
-    print(f"✓ Fetching version: {version.id}")
-
-    # Receive the data
-    transport = ServerTransport(client=client, stream_id=PROJECT_ID)
-    data = operations.receive(version.referenced_object, transport)
-
-    # ---------------------------
-    # Add root-level properties
-    # ---------------------------
-    data["custom_property"] = "Team_02.2"
-    data["analysis_date"] = "2026-01-18"
-    data["processed_by"] = "Shuai Zhang"
+# ----------------------------------
+# Authenticate
+# ----------------------------------
+client = get_client()
 
 
+# ----------------------------------
+# Get the latest version
+# ----------------------------------
+latest_version = client.version.get_versions(
+    MODEL_ID,
+    PROJECT_ID,
+    limit=1
+).items[0]
 
-    # ---------------------------
-    # Modify Designer names in child elements
-    # ---------------------------
-  # Modify Designer names in child elements
-    # ---------------------------
-    elements = getattr(data, "@elements", None) or getattr(data, "elements", [])
+print(f"✓ Fetching version: {latest_version.id}")
 
-    for i, element in enumerate(elements or []):
-        if not isinstance(element, Base):
-            continue
 
-        # Optional: add index and tag
-        element["element_index"] = i
-        element["custom_tag"] = f"Element_{i:03d}"
+# ----------------------------------
+# Receive the data
+# ----------------------------------
+transport = ServerTransport(
+    client=client,
+    stream_id=PROJECT_ID
+)
 
-        # Skip if no properties
-        if "properties" not in element.get_member_names():
-            continue
+data = operations.receive(
+    latest_version.referenced_object,
+    transport
+)
 
-        props = element["properties"]
 
-        # Find Identity dictionary (where Viewer reads Designer)
-        identity = None
-        if "Identity" in props and isinstance(props["Identity"], dict):
-            identity = props["Identity"]
-        elif "BIM" in props and "Identity" in props["BIM"] and isinstance(props["BIM"]["Identity"], dict):
-            identity = props["BIM"]["Identity"]
+# ----------------------------------
+# Add root-level properties
+# ----------------------------------
+data["custom_property"] = "Team_02.2"
+data["analysis_date"] = "2026-01-29"
+data["processed_by"] = "Shuai Zhang"
 
-        if not identity:
-            continue
 
-        # Modify Designer based on Module
-        module = identity.get("Module")
-        if module == 1:
-            identity["Designer"] = "Giovanni Carlo"
-        elif module == 3:
-            identity["Designer"] = "Hala Lahlou"
+# ----------------------------------
+# Find "Old modules" collection
+# ----------------------------------
+def find_collection(obj, name):
+    elements = getattr(obj, "@elements", None) or getattr(obj, "elements", [])
 
-    print(f"✓ Updated Designer names for elements.")
+    for el in elements or []:
+        if getattr(el, "name", None) == name:
+            return el
 
-    # ---------------------------
-    # Send the modified data back
-    # ---------------------------
-    object_id = operations.send(data, [transport])
-    print(f"✓ Sent object: {object_id}")
+        found = find_collection(el, name)
+        if found:
+            return found
 
-    # Create a new version in Speckle
-    version = client.version.create(
-        CreateVersionInput(
-            projectId=PROJECT_ID,
-            modelId=MODEL_ID,
-            objectId=object_id,
-            message="Updated Designer names for Module 1 & 3"
-        )
+    return None
+
+
+old_modules = find_collection(data, "Old modules")
+
+
+# ----------------------------------
+# Modify Designer names
+# ----------------------------------
+new_designers = [
+    "Giovanni Carlo",
+    "Hala Lahlou",
+]
+
+if old_modules:
+    old_elements = getattr(old_modules, "@elements", None) or getattr(
+        old_modules, "elements", []
     )
 
-    print(f"✓ Created new version: {version.id}")
+    for element, designer in zip(old_elements, new_designers):
+        if isinstance(element, Base) and "properties" in element.get_member_names():
+            element["properties"]["Designer"] = designer
 
-# ---------------------------
-# ENTRY POINT
-# ---------------------------
-if __name__ == "__main__":
-    main()
+    print("✓ Updated Designer names in 'Old modules' collection.")
+
+
+# ----------------------------------
+# Send the modified data back
+# ----------------------------------
+object_id = operations.send(data, [transport])
+print(f"✓ Sent object: {object_id}")
+
+
+# ----------------------------------
+# Create a new version in Speckle
+# ----------------------------------
+version = client.version.create(
+    CreateVersionInput(
+        projectId=PROJECT_ID,
+        modelId=MODEL_ID,
+        objectId=object_id,
+        message="Updated Designer names in Old modules",
+    )
+)
+
+print(f"✓ Created new version: {version.id}")
